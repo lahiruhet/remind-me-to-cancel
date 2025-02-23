@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect } from "react";
+import { useForm } from "react-hook-form";
 import {
   Subscription,
   SubscriptionFormData,
@@ -28,76 +29,73 @@ export function SubscriptionForm({
   initialData,
   isLoading,
 }: SubscriptionFormProps) {
-  const [formData, setFormData] = useState<SubscriptionFormData>({
-    name: initialData?.name || "",
-    renewalDate:
-      initialData?.renewalDate || new Date().toISOString().split("T")[0],
-    cost: initialData?.cost || 0,
-    frequency: initialData?.frequency || "Monthly",
-    status: initialData?.status || "Active",
-    notes: initialData?.notes || "",
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = useForm<SubscriptionFormData>({
+    defaultValues: {
+      name: initialData?.name || "",
+      renewalDate:
+        initialData?.renewalDate || new Date().toISOString().split("T")[0],
+      cost: initialData?.cost || 0,
+      frequency: initialData?.frequency || "Monthly",
+      status: initialData?.status || "Active",
+      notes: initialData?.notes || "",
+    },
   });
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    await onSubmit(formData);
-  };
+  useEffect(() => {
+    reset({
+      name: initialData?.name || "",
+      renewalDate:
+        initialData?.renewalDate || new Date().toISOString().split("T")[0],
+      cost: initialData?.cost || 0,
+      frequency: initialData?.frequency || "Monthly",
+      status: initialData?.status || "Active",
+      notes: initialData?.notes || "",
+    });
+  }, [initialData, reset]);
 
-  const handleChange = (
-    e: React.ChangeEvent<
-      HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
-    >
-  ) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: name === "cost" ? parseFloat(value) || 0 : value,
-    }));
+  const onFormSubmit = async (data: SubscriptionFormData) => {
+    await onSubmit(data);
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form onSubmit={handleSubmit(onFormSubmit)} className="space-y-4">
       <div>
-        <label
-          htmlFor="name"
-          className="block text-sm font-medium text-gray-700"
-        >
+        <label htmlFor="name" className="block text-sm font-medium text-gray-700">
           Name *
         </label>
         <input
           type="text"
           id="name"
-          name="name"
-          required
-          value={formData.name}
-          onChange={handleChange}
+          {...register("name", { required: "Name is required" })}
           className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
         />
+        {errors.name && (
+          <span className="text-red-600 text-sm">{errors.name.message}</span>
+        )}
       </div>
 
       <div>
-        <label
-          htmlFor="renewalDate"
-          className="block text-sm font-medium text-gray-700"
-        >
+        <label htmlFor="renewalDate" className="block text-sm font-medium text-gray-700">
           Renewal Date *
         </label>
         <input
           type="date"
           id="renewalDate"
-          name="renewalDate"
-          required
-          value={formData.renewalDate}
-          onChange={handleChange}
+          {...register("renewalDate", { required: "Renewal date is required" })}
           className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
         />
+        {errors.renewalDate && (
+          <span className="text-red-600 text-sm">{errors.renewalDate.message}</span>
+        )}
       </div>
 
       <div>
-        <label
-          htmlFor="cost"
-          className="block text-sm font-medium text-gray-700"
-        >
+        <label htmlFor="cost" className="block text-sm font-medium text-gray-700">
           Cost *
         </label>
         <div className="mt-1 relative rounded-md shadow-sm">
@@ -107,30 +105,27 @@ export function SubscriptionForm({
           <input
             type="number"
             id="cost"
-            name="cost"
-            required
-            min="0"
             step="0.01"
-            value={formData.cost}
-            onChange={handleChange}
+            {...register("cost", {
+              required: "Cost is required",
+              valueAsNumber: true,
+              min: { value: 0, message: "Cost must be non-negative" },
+            })}
             className="pl-7 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
           />
+          {errors.cost && (
+            <span className="text-red-600 text-sm">{errors.cost.message}</span>
+          )}
         </div>
       </div>
 
       <div>
-        <label
-          htmlFor="frequency"
-          className="block text-sm font-medium text-gray-700"
-        >
+        <label htmlFor="frequency" className="block text-sm font-medium text-gray-700">
           Frequency *
         </label>
         <select
           id="frequency"
-          name="frequency"
-          required
-          value={formData.frequency}
-          onChange={handleChange}
+          {...register("frequency", { required: "Frequency is required" })}
           className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
         >
           {frequencies.map((freq) => (
@@ -139,21 +134,18 @@ export function SubscriptionForm({
             </option>
           ))}
         </select>
+        {errors.frequency && (
+          <span className="text-red-600 text-sm">{errors.frequency.message}</span>
+        )}
       </div>
 
       <div>
-        <label
-          htmlFor="status"
-          className="block text-sm font-medium text-gray-700"
-        >
+        <label htmlFor="status" className="block text-sm font-medium text-gray-700">
           Status *
         </label>
         <select
           id="status"
-          name="status"
-          required
-          value={formData.status}
-          onChange={handleChange}
+          {...register("status", { required: "Status is required" })}
           className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
         >
           {statuses.map((status) => (
@@ -162,21 +154,19 @@ export function SubscriptionForm({
             </option>
           ))}
         </select>
+        {errors.status && (
+          <span className="text-red-600 text-sm">{errors.status.message}</span>
+        )}
       </div>
 
       <div>
-        <label
-          htmlFor="notes"
-          className="block text-sm font-medium text-gray-700"
-        >
+        <label htmlFor="notes" className="block text-sm font-medium text-gray-700">
           Notes
         </label>
         <textarea
           id="notes"
-          name="notes"
           rows={3}
-          value={formData.notes}
-          onChange={handleChange}
+          {...register("notes")}
           className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
         />
       </div>

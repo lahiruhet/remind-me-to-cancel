@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Subscription, SubscriptionFormData } from "@/types/subscription";
 import { subscriptionService } from "@/lib/subscription-service";
 import { SubscriptionList } from "@/components/SubscriptionList";
 import { SubscriptionForm } from "@/components/SubscriptionForm";
 import { Button } from "@/components/ui/Button";
+import ConfirmModal from "@/components/ui/ConfirmModal";
 
 export default function Home() {
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
@@ -14,8 +15,9 @@ export default function Home() {
   const [editingSubscription, setEditingSubscription] =
     useState<Subscription | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [subscriptionToDelete, setSubscriptionToDelete] = useState<Subscription | null>(null);
 
-  const loadSubscriptions = async () => {
+  const loadSubscriptions = useCallback(async () => {
     try {
       setIsLoading(true);
       const data = await subscriptionService.getAll();
@@ -27,61 +29,72 @@ export default function Home() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     loadSubscriptions();
-  }, []); // Empty dependency array means this runs once on mount
+  }, [loadSubscriptions]);
 
-  const handleCreateSubscription = async (data: SubscriptionFormData) => {
+  const handleCreateSubscription = useCallback(
+    async (data: SubscriptionFormData) => {
+      try {
+        setIsLoading(true);
+        await subscriptionService.create(data);
+        await loadSubscriptions();
+        setShowForm(false);
+        setError(null);
+      } catch (err) {
+        setError("Failed to create subscription");
+        console.error(err);
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [loadSubscriptions]
+  );
+
+  const handleUpdateSubscription = useCallback(
+    async (data: SubscriptionFormData) => {
+      if (!editingSubscription) return;
+      try {
+        setIsLoading(true);
+        await subscriptionService.update(editingSubscription.id, data);
+        await loadSubscriptions();
+        setEditingSubscription(null);
+        setError(null);
+      } catch (err) {
+        setError("Failed to update subscription");
+        console.error(err);
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [editingSubscription, loadSubscriptions]
+  );
+
+  const confirmDeleteSubscription = useCallback((subscription: Subscription) => {
+    setSubscriptionToDelete(subscription);
+  }, []);
+
+  const handleDeleteSubscription = useCallback(async () => {
+    if (!subscriptionToDelete) return;
     try {
       setIsLoading(true);
-      await subscriptionService.create(data);
-      await loadSubscriptions();
-      setShowForm(false);
-      setError(null);
-    } catch (err) {
-      setError("Failed to create subscription");
-      console.error(err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleUpdateSubscription = async (data: SubscriptionFormData) => {
-    if (!editingSubscription) return;
-
-    try {
-      setIsLoading(true);
-      await subscriptionService.update(editingSubscription.id, data);
-      await loadSubscriptions();
-      setEditingSubscription(null);
-      setError(null);
-    } catch (err) {
-      setError("Failed to update subscription");
-      console.error(err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleDeleteSubscription = async (subscription: Subscription) => {
-    if (!window.confirm("Are you sure you want to delete this subscription?")) {
-      return;
-    }
-
-    try {
-      setIsLoading(true);
-      await subscriptionService.delete(subscription.id);
+      await subscriptionService.delete(subscriptionToDelete.id);
       await loadSubscriptions();
       setError(null);
+      setSubscriptionToDelete(null);
     } catch (err) {
       setError("Failed to delete subscription");
       console.error(err);
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [subscriptionToDelete, loadSubscriptions]);
+
+  const handleCancelDelete = useCallback(() => {
+    setSubscriptionToDelete(null);
+  }, []);
 
   return (
     <main className="container mx-auto px-4 py-8">
@@ -121,9 +134,7 @@ export default function Home() {
         <div className="bg-white shadow sm:rounded-lg mb-8">
           <div className="px-4 py-5 sm:p-6">
             <h3 className="text-lg font-medium leading-6 text-gray-900 mb-4">
-              {editingSubscription
-                ? "Edit Subscription"
-                : "Add New Subscription"}
+              {editingSubscription ? "Edit Subscription" : "Add New Subscription"}
             </h3>
             <SubscriptionForm
               onSubmit={
@@ -147,11 +158,20 @@ export default function Home() {
           <SubscriptionList
             subscriptions={subscriptions}
             onEdit={setEditingSubscription}
-            onDelete={handleDeleteSubscription}
+            onDelete={confirmDeleteSubscription}
             isLoading={isLoading}
           />
         </div>
       </div>
+
+      {subscriptionToDelete && (
+        <ConfirmModal
+          title="Confirm Deletion"
+          message={`Are you sure you want to delete the subscription "${subscriptionToDelete.name}"?`}
+          onConfirm={handleDeleteSubscription}
+          onCancel={handleCancelDelete}
+        />
+      )}
     </main>
   );
 }
