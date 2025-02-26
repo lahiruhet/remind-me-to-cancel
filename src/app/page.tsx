@@ -1,10 +1,11 @@
 "use client";
 
+import { AuthenticatedLayout } from "@/components/AuthenticatedLayout";
+import { SubscriptionList } from "@/components/SubscriptionList";
+import { SubscriptionForm } from "@/components/SubscriptionForm";
 import { useState, useEffect, useCallback } from "react";
 import { Subscription, SubscriptionFormData } from "@/types/subscription";
 import { subscriptionService } from "@/lib/subscription-service";
-import { SubscriptionList } from "@/components/SubscriptionList";
-import { SubscriptionForm } from "@/components/SubscriptionForm";
 import { Button } from "@/components/ui/Button";
 import ConfirmModal from "@/components/ui/ConfirmModal";
 import { authService } from "@/lib/auth-service";
@@ -152,86 +153,83 @@ export default function Home() {
   }, [subscriptions, sortField, sortDirection]);
 
   return (
-    <main className="container mx-auto px-4 py-8">
-      <div className="sm:flex sm:items-center sm:justify-between mb-8">
-        <h1 className="text-2xl font-bold text-gray-900">
-          Subscription Manager
-        </h1>
-        {!showForm && !editingSubscription && (
-          <Button onClick={() => setShowForm(true)}>Add Subscription</Button>
+    <AuthenticatedLayout>
+      <div className="space-y-6">
+        <div className="flex justify-between items-center">
+          <h1 className="text-2xl font-bold">Your Subscriptions</h1>
+          {!showForm && !editingSubscription && (
+            <Button onClick={() => setShowForm(true)}>Add Subscription</Button>
+          )}
+        </div>
+
+        {error && (
+          <div className="bg-red-50 border-l-4 border-red-400 p-4 mb-8">
+            <div className="flex">
+              <div className="flex-shrink-0">
+                <svg
+                  className="h-5 w-5 text-red-400"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+              </div>
+              <div className="ml-3">
+                <p className="text-sm text-red-700">{error}</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {(showForm || editingSubscription) && (
+          <div className="fixed inset-0 z-40 bg-black bg-opacity-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto">
+              <h2 className="text-xl font-bold mb-4">
+                {editingSubscription ? "Edit" : "Add"} Subscription
+              </h2>
+              <SubscriptionForm
+                onSubmit={
+                  editingSubscription
+                    ? handleUpdateSubscription
+                    : handleCreateSubscription
+                }
+                onCancel={() => {
+                  setShowForm(false);
+                  setEditingSubscription(null);
+                }}
+                initialData={editingSubscription || undefined}
+                isLoading={isLoading}
+              />
+            </div>
+          </div>
+        )}
+
+        <SubscriptionList
+          subscriptions={getSortedSubscriptions()}
+          onEdit={(subscription) => {
+            setEditingSubscription(subscription);
+            setShowForm(true);
+          }}
+          onDelete={confirmDeleteSubscription}
+          isLoading={isLoading}
+          sortField={sortField}
+          sortDirection={sortDirection}
+          onSort={handleSort}
+        />
+
+        {subscriptionToDelete && (
+          <ConfirmModal
+            title="Delete Subscription"
+            message={`Are you sure you want to delete ${subscriptionToDelete.name}? This action cannot be undone.`}
+            onConfirm={handleDeleteSubscription}
+            onCancel={handleCancelDelete}
+          />
         )}
       </div>
-
-      {error && (
-        <div className="bg-red-50 border-l-4 border-red-400 p-4 mb-8">
-          <div className="flex">
-            <div className="flex-shrink-0">
-              <svg
-                className="h-5 w-5 text-red-400"
-                viewBox="0 0 20 20"
-                fill="currentColor"
-              >
-                <path
-                  fillRule="evenodd"
-                  d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
-                  clipRule="evenodd"
-                />
-              </svg>
-            </div>
-            <div className="ml-3">
-              <p className="text-sm text-red-700">{error}</p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {(showForm || editingSubscription) && (
-        <div className="bg-white shadow sm:rounded-lg mb-8">
-          <div className="px-4 py-5 sm:p-6">
-            <h3 className="text-lg font-medium leading-6 text-gray-900 mb-4">
-              {editingSubscription
-                ? "Edit Subscription"
-                : "Add New Subscription"}
-            </h3>
-            <SubscriptionForm
-              onSubmit={
-                editingSubscription
-                  ? handleUpdateSubscription
-                  : handleCreateSubscription
-              }
-              onCancel={() => {
-                setShowForm(false);
-                setEditingSubscription(null);
-              }}
-              initialData={editingSubscription || undefined}
-              isLoading={isLoading}
-            />
-          </div>
-        </div>
-      )}
-
-      <div className="bg-white shadow sm:rounded-lg">
-        <div className="px-4 py-5 sm:p-6">
-          <SubscriptionList
-            subscriptions={getSortedSubscriptions()}
-            onEdit={setEditingSubscription}
-            onDelete={confirmDeleteSubscription}
-            isLoading={isLoading}
-            sortField={sortField}
-            sortDirection={sortDirection}
-            onSort={handleSort}
-          />
-        </div>
-      </div>
-
-      {subscriptionToDelete && (
-        <ConfirmModal
-          title="Confirm Deletion"
-          message={`Are you sure you want to delete the subscription "${subscriptionToDelete.name}"?`}
-          onConfirm={handleDeleteSubscription}
-          onCancel={handleCancelDelete}
-        />
-      )}
-    </main>
+    </AuthenticatedLayout>
   );
 }

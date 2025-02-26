@@ -1,5 +1,14 @@
 import { auth } from "./firebase";
-import { signInAnonymously, onAuthStateChanged } from "firebase/auth";
+import {
+  signInAnonymously,
+  onAuthStateChanged,
+  GoogleAuthProvider,
+  signInWithPopup,
+  signOut as firebaseSignOut,
+  User,
+} from "firebase/auth";
+
+const googleProvider = new GoogleAuthProvider();
 
 export const authService = {
   signInAnonymously: async () => {
@@ -16,6 +25,31 @@ export const authService = {
       console.error("Error signing in anonymously:", error);
       // Don't throw the error to prevent app crashing
     }
+  },
+
+  signInWithGoogle: async () => {
+    try {
+      const result = await signInWithPopup(auth, googleProvider);
+      return result.user;
+    } catch (error) {
+      console.error("Error signing in with Google:", error);
+      throw error;
+    }
+  },
+
+  signOut: async () => {
+    try {
+      await firebaseSignOut(auth);
+      console.log("Signed out successfully");
+    } catch (error) {
+      console.error("Error signing out:", error);
+      throw error;
+    }
+  },
+
+  // Get current user
+  getCurrentUser: (): User | null => {
+    return auth.currentUser;
   },
 
   // Listen for auth state changes

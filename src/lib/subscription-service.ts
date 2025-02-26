@@ -1,5 +1,5 @@
 import { Subscription, SubscriptionFormData } from "@/types/subscription";
-import { db } from "./firebase";
+import { db, auth } from "./firebase";
 import {
   collection,
   getDocs,
@@ -10,6 +10,7 @@ import {
   Timestamp,
   query,
   orderBy,
+  where,
 } from "firebase/firestore";
 
 const COLLECTION_NAME = "subscriptions";
@@ -17,11 +18,23 @@ const COLLECTION_NAME = "subscriptions";
 export const subscriptionService = {
   getAll: async (): Promise<Subscription[]> => {
     try {
+      const userId = auth.currentUser?.uid;
+
+      if (!userId) {
+        console.error("User not authenticated when getting subscriptions");
+        return []; // Return empty array instead of throwing error
+      }
+
+      console.log("Fetching subscriptions for userId:", userId);
+
       const subscriptionsQuery = query(
         collection(db, COLLECTION_NAME),
+        where("userId", "==", userId),
         orderBy("createdAt", "desc")
       );
+
       const snapshot = await getDocs(subscriptionsQuery);
+      console.log(`Found ${snapshot.docs.length} subscriptions`);
 
       return snapshot.docs.map((doc) => {
         const data = doc.data();
@@ -39,16 +52,26 @@ export const subscriptionService = {
       });
     } catch (error) {
       console.error("Error getting subscriptions:", error);
-      throw error;
+      return []; // Return empty array on error
     }
   },
 
   create: async (data: SubscriptionFormData): Promise<Subscription> => {
     try {
+      const userId = auth.currentUser?.uid;
+
+      if (!userId) {
+        console.error("User not authenticated when creating subscription");
+        throw new Error("User not authenticated");
+      }
+
+      console.log("Creating subscription for userId:", userId);
+
       const now = Timestamp.now();
 
       // Format the data for Firestore
       const subscriptionData = {
+        userId, // Add the user ID to associate with this subscription
         name: data.name,
         renewalDate: data.renewalDate,
         cost: Number(data.cost), // Ensure this is a number
@@ -63,6 +86,8 @@ export const subscriptionService = {
         collection(db, COLLECTION_NAME),
         subscriptionData
       );
+
+      console.log("Created subscription with ID:", docRef.id);
 
       return {
         id: docRef.id,
@@ -86,6 +111,14 @@ export const subscriptionService = {
     data: SubscriptionFormData
   ): Promise<Subscription> => {
     try {
+      const userId = auth.currentUser?.uid;
+
+      if (!userId) {
+        throw new Error("User not authenticated");
+      }
+
+      console.log(`Updating subscription ${id} for userId: ${userId}`);
+
       const docRef = doc(db, COLLECTION_NAME, id);
 
       const updateData = {
@@ -94,6 +127,7 @@ export const subscriptionService = {
       };
 
       await updateDoc(docRef, updateData);
+      console.log(`Updated subscription ${id}`);
 
       // Get the updated document to return
       const updatedSubscription: Subscription = {
@@ -115,8 +149,17 @@ export const subscriptionService = {
 
   delete: async (id: string): Promise<void> => {
     try {
+      const userId = auth.currentUser?.uid;
+
+      if (!userId) {
+        throw new Error("User not authenticated");
+      }
+
+      console.log(`Deleting subscription ${id} for userId: ${userId}`);
+
       const docRef = doc(db, COLLECTION_NAME, id);
       await deleteDoc(docRef);
+      console.log(`Deleted subscription ${id}`);
     } catch (error) {
       console.error("Error deleting subscription:", error);
       throw error;
