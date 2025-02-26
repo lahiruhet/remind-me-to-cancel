@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import {
   Subscription,
@@ -23,22 +23,57 @@ const frequencies: SubscriptionFrequency[] = [
 ];
 const statuses: SubscriptionStatus[] = ["Active", "Cancelled", "Paused"];
 
+// Add a helper function for formatting dates
+const formatDisplayDate = (dateString: string) => {
+  const date = new Date(dateString);
+  return date.toLocaleDateString("en-GB"); // DD/MM/YYYY format
+};
+
 export function SubscriptionForm({
   onSubmit,
   onCancel,
   initialData,
   isLoading,
 }: SubscriptionFormProps) {
+  // Calculate initial purchase date if editing
+  const calculateInitialPurchaseDate = () => {
+    if (!initialData?.renewalDate)
+      return new Date().toISOString().split("T")[0];
+
+    const renewalDate = new Date(initialData.renewalDate);
+
+    switch (initialData.frequency) {
+      case "Monthly":
+        renewalDate.setMonth(renewalDate.getMonth() - 1);
+        break;
+      case "Yearly":
+        renewalDate.setFullYear(renewalDate.getFullYear() - 1);
+        break;
+      case "Quarterly":
+        renewalDate.setMonth(renewalDate.getMonth() - 3);
+        break;
+      case "Weekly":
+        renewalDate.setDate(renewalDate.getDate() - 7);
+        break;
+    }
+
+    return renewalDate.toISOString().split("T")[0];
+  };
+
+  const [selectedFrequency, setSelectedFrequency] =
+    useState<SubscriptionFrequency>(initialData?.frequency || "Monthly");
+
   const {
     register,
     handleSubmit,
     reset,
+    watch,
+    setValue,
     formState: { errors },
-  } = useForm<SubscriptionFormData>({
+  } = useForm<SubscriptionFormData & { purchaseDate: string }>({
     defaultValues: {
       name: initialData?.name || "",
-      renewalDate:
-        initialData?.renewalDate || new Date().toISOString().split("T")[0],
+      purchaseDate: calculateInitialPurchaseDate(),
       cost: initialData?.cost || 0,
       frequency: initialData?.frequency || "Monthly",
       status: initialData?.status || "Active",
@@ -49,23 +84,69 @@ export function SubscriptionForm({
   useEffect(() => {
     reset({
       name: initialData?.name || "",
-      renewalDate:
-        initialData?.renewalDate || new Date().toISOString().split("T")[0],
+      purchaseDate: calculateInitialPurchaseDate(),
       cost: initialData?.cost || 0,
       frequency: initialData?.frequency || "Monthly",
       status: initialData?.status || "Active",
       notes: initialData?.notes || "",
     });
+    setSelectedFrequency(initialData?.frequency || "Monthly");
   }, [initialData, reset]);
 
-  const onFormSubmit = async (data: SubscriptionFormData) => {
-    await onSubmit(data);
+  // Watch for frequency changes
+  const frequency = watch("frequency");
+  useEffect(() => {
+    setSelectedFrequency(frequency as SubscriptionFrequency);
+  }, [frequency]);
+
+  const calculateRenewalDate = (
+    purchaseDate: string,
+    frequency: SubscriptionFrequency
+  ) => {
+    const date = new Date(purchaseDate);
+
+    switch (frequency) {
+      case "Monthly":
+        date.setMonth(date.getMonth() + 1);
+        break;
+      case "Yearly":
+        date.setFullYear(date.getFullYear() + 1);
+        break;
+      case "Quarterly":
+        date.setMonth(date.getMonth() + 3);
+        break;
+      case "Weekly":
+        date.setDate(date.getDate() + 7);
+        break;
+    }
+
+    return date.toISOString().split("T")[0];
+  };
+
+  const onFormSubmit = async (
+    data: SubscriptionFormData & { purchaseDate: string }
+  ) => {
+    // Calculate renewal date from purchase date
+    const renewalDate = calculateRenewalDate(data.purchaseDate, data.frequency);
+
+    // Submit with calculated renewal date
+    await onSubmit({
+      name: data.name,
+      renewalDate: renewalDate,
+      cost: data.cost,
+      frequency: data.frequency,
+      status: data.status,
+      notes: data.notes,
+    });
   };
 
   return (
     <form onSubmit={handleSubmit(onFormSubmit)} className="space-y-4">
       <div>
-        <label htmlFor="name" className="block text-sm font-medium text-gray-700">
+        <label
+          htmlFor="name"
+          className="block text-sm font-medium text-gray-700"
+        >
           Name *
         </label>
         <input
@@ -80,22 +161,32 @@ export function SubscriptionForm({
       </div>
 
       <div>
-        <label htmlFor="renewalDate" className="block text-sm font-medium text-gray-700">
-          Renewal Date *
+        <label
+          htmlFor="purchaseDate"
+          className="block text-sm font-medium text-gray-700"
+        >
+          Purchase Date *
         </label>
         <input
           type="date"
-          id="renewalDate"
-          {...register("renewalDate", { required: "Renewal date is required" })}
+          id="purchaseDate"
+          {...register("purchaseDate", {
+            required: "Purchase date is required",
+          })}
           className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
         />
-        {errors.renewalDate && (
-          <span className="text-red-600 text-sm">{errors.renewalDate.message}</span>
+        {errors.purchaseDate && (
+          <span className="text-red-600 text-sm">
+            {errors.purchaseDate.message}
+          </span>
         )}
       </div>
 
       <div>
-        <label htmlFor="cost" className="block text-sm font-medium text-gray-700">
+        <label
+          htmlFor="cost"
+          className="block text-sm font-medium text-gray-700"
+        >
           Cost *
         </label>
         <div className="mt-1 relative rounded-md shadow-sm">
@@ -120,7 +211,10 @@ export function SubscriptionForm({
       </div>
 
       <div>
-        <label htmlFor="frequency" className="block text-sm font-medium text-gray-700">
+        <label
+          htmlFor="frequency"
+          className="block text-sm font-medium text-gray-700"
+        >
           Frequency *
         </label>
         <select
@@ -135,12 +229,31 @@ export function SubscriptionForm({
           ))}
         </select>
         {errors.frequency && (
-          <span className="text-red-600 text-sm">{errors.frequency.message}</span>
+          <span className="text-red-600 text-sm">
+            {errors.frequency.message}
+          </span>
         )}
       </div>
 
       <div>
-        <label htmlFor="status" className="block text-sm font-medium text-gray-700">
+        <label className="block text-sm font-medium text-gray-700">
+          Renewal Date (calculated)
+        </label>
+        <div className="mt-1 p-2 block w-full rounded-md border border-gray-300 bg-gray-50 text-sm text-gray-500">
+          {formatDisplayDate(
+            calculateRenewalDate(
+              watch("purchaseDate") || new Date().toISOString().split("T")[0],
+              selectedFrequency
+            )
+          )}
+        </div>
+      </div>
+
+      <div>
+        <label
+          htmlFor="status"
+          className="block text-sm font-medium text-gray-700"
+        >
           Status *
         </label>
         <select
@@ -160,7 +273,10 @@ export function SubscriptionForm({
       </div>
 
       <div>
-        <label htmlFor="notes" className="block text-sm font-medium text-gray-700">
+        <label
+          htmlFor="notes"
+          className="block text-sm font-medium text-gray-700"
+        >
           Notes
         </label>
         <textarea

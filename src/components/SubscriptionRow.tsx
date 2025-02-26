@@ -20,11 +20,56 @@ const getStatusColor = (status: SubscriptionStatus) => {
   }
 };
 
+const calculateDaysUntilRenewal = (renewalDate: string) => {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const renewal = new Date(renewalDate);
+  const differenceInTime = renewal.getTime() - today.getTime();
+  const differenceInDays = Math.ceil(differenceInTime / (1000 * 3600 * 24));
+
+  if (differenceInDays < 0) {
+    return `${Math.abs(differenceInDays)} days ago`;
+  } else if (differenceInDays === 0) {
+    return "Today";
+  } else if (differenceInDays === 1) {
+    return "Tomorrow";
+  } else {
+    return `${differenceInDays} days`;
+  }
+};
+
+const formatDate = (dateString: string) => {
+  const date = new Date(dateString);
+  return date.toLocaleDateString("en-GB");
+};
+
 export function SubscriptionRow({
   subscription,
   onEdit,
   onDelete,
 }: SubscriptionRowProps) {
+  // Calculate purchase date from renewal date and frequency
+  const getPurchaseDate = () => {
+    const renewalDate = new Date(subscription.renewalDate);
+
+    switch (subscription.frequency) {
+      case "Monthly":
+        renewalDate.setMonth(renewalDate.getMonth() - 1);
+        break;
+      case "Yearly":
+        renewalDate.setFullYear(renewalDate.getFullYear() - 1);
+        break;
+      case "Quarterly":
+        renewalDate.setMonth(renewalDate.getMonth() - 3);
+        break;
+      case "Weekly":
+        renewalDate.setDate(renewalDate.getDate() - 7);
+        break;
+    }
+
+    return formatDate(renewalDate.toISOString());
+  };
+
   return (
     <tr key={subscription.id} className="hover:bg-gray-50">
       <td className="px-6 py-4 whitespace-nowrap">
@@ -36,7 +81,10 @@ export function SubscriptionRow({
         )}
       </td>
       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-        {new Date(subscription.renewalDate).toLocaleDateString()}
+        {getPurchaseDate()}
+      </td>
+      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+        {calculateDaysUntilRenewal(subscription.renewalDate)}
       </td>
       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
         ${subscription.cost.toFixed(2)}
@@ -54,10 +102,18 @@ export function SubscriptionRow({
         </span>
       </td>
       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
-        <Button variant="secondary" size="sm" onClick={() => onEdit(subscription)}>
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={() => onEdit(subscription)}
+        >
           Edit
         </Button>
-        <Button variant="danger" size="sm" onClick={() => onDelete(subscription)}>
+        <Button
+          variant="danger"
+          size="sm"
+          onClick={() => onDelete(subscription)}
+        >
           Delete
         </Button>
       </td>

@@ -7,6 +7,7 @@ import { SubscriptionList } from "@/components/SubscriptionList";
 import { SubscriptionForm } from "@/components/SubscriptionForm";
 import { Button } from "@/components/ui/Button";
 import ConfirmModal from "@/components/ui/ConfirmModal";
+import { authService } from "@/lib/auth-service";
 
 export default function Home() {
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
@@ -15,7 +16,14 @@ export default function Home() {
   const [editingSubscription, setEditingSubscription] =
     useState<Subscription | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [subscriptionToDelete, setSubscriptionToDelete] = useState<Subscription | null>(null);
+  const [subscriptionToDelete, setSubscriptionToDelete] =
+    useState<Subscription | null>(null);
+  const [user, setUser] = useState(null);
+  const [authInitialized, setAuthInitialized] = useState(false);
+  const [sortField, setSortField] = useState<"renewalDate" | "cost" | null>(
+    null
+  );
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
 
   const loadSubscriptions = useCallback(async () => {
     try {
@@ -32,8 +40,24 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    loadSubscriptions();
-  }, [loadSubscriptions]);
+    // Set up auth state listener
+    const unsubscribe = authService.onAuthStateChanged((user) => {
+      setUser(user);
+      setAuthInitialized(true);
+    });
+
+    // Try to sign in anonymously
+    authService.signInAnonymously();
+
+    return () => unsubscribe(); // Clean up listener on unmount
+  }, []);
+
+  useEffect(() => {
+    // Only load subscriptions after auth is initialized
+    if (authInitialized) {
+      loadSubscriptions();
+    }
+  }, [authInitialized, loadSubscriptions]);
 
   const handleCreateSubscription = useCallback(
     async (data: SubscriptionFormData) => {
@@ -72,9 +96,12 @@ export default function Home() {
     [editingSubscription, loadSubscriptions]
   );
 
-  const confirmDeleteSubscription = useCallback((subscription: Subscription) => {
-    setSubscriptionToDelete(subscription);
-  }, []);
+  const confirmDeleteSubscription = useCallback(
+    (subscription: Subscription) => {
+      setSubscriptionToDelete(subscription);
+    },
+    []
+  );
 
   const handleDeleteSubscription = useCallback(async () => {
     if (!subscriptionToDelete) return;
@@ -95,6 +122,34 @@ export default function Home() {
   const handleCancelDelete = useCallback(() => {
     setSubscriptionToDelete(null);
   }, []);
+
+  const handleSort = (field: "cost" | "renewalDate") => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === "asc" ? "desc" : "asc");
+    } else {
+      setSortField(field);
+      setSortDirection("asc");
+    }
+  };
+
+  const getSortedSubscriptions = useCallback(() => {
+    if (!sortField) return subscriptions;
+
+    return [...subscriptions].sort((a, b) => {
+      if (sortField === "cost") {
+        return sortDirection === "asc" ? a.cost - b.cost : b.cost - a.cost;
+      } else if (sortField === "renewalDate") {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        const dateA = new Date(a.renewalDate).getTime() - today.getTime();
+        const dateB = new Date(b.renewalDate).getTime() - today.getTime();
+
+        return sortDirection === "asc" ? dateA - dateB : dateB - dateA;
+      }
+      return 0;
+    });
+  }, [subscriptions, sortField, sortDirection]);
 
   return (
     <main className="container mx-auto px-4 py-8">
@@ -134,7 +189,9 @@ export default function Home() {
         <div className="bg-white shadow sm:rounded-lg mb-8">
           <div className="px-4 py-5 sm:p-6">
             <h3 className="text-lg font-medium leading-6 text-gray-900 mb-4">
-              {editingSubscription ? "Edit Subscription" : "Add New Subscription"}
+              {editingSubscription
+                ? "Edit Subscription"
+                : "Add New Subscription"}
             </h3>
             <SubscriptionForm
               onSubmit={
@@ -156,10 +213,13 @@ export default function Home() {
       <div className="bg-white shadow sm:rounded-lg">
         <div className="px-4 py-5 sm:p-6">
           <SubscriptionList
-            subscriptions={subscriptions}
+            subscriptions={getSortedSubscriptions()}
             onEdit={setEditingSubscription}
             onDelete={confirmDeleteSubscription}
             isLoading={isLoading}
+            sortField={sortField}
+            sortDirection={sortDirection}
+            onSort={handleSort}
           />
         </div>
       </div>

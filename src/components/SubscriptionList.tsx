@@ -6,6 +6,9 @@ interface SubscriptionListProps {
   onEdit: (subscription: Subscription) => void;
   onDelete: (subscription: Subscription) => void;
   isLoading?: boolean;
+  sortField: "renewalDate" | "cost" | null;
+  sortDirection: "asc" | "desc";
+  onSort: (field: "renewalDate" | "cost") => void;
 }
 
 export function SubscriptionList({
@@ -13,6 +16,9 @@ export function SubscriptionList({
   onEdit,
   onDelete,
   isLoading,
+  sortField,
+  sortDirection,
+  onSort,
 }: SubscriptionListProps) {
   if (isLoading) {
     return (
@@ -30,6 +36,33 @@ export function SubscriptionList({
     );
   }
 
+  const SortHeader = ({
+    field,
+    label,
+  }: {
+    field: "cost" | "renewalDate";
+    label: string;
+  }) => {
+    const isSorted = sortField === field;
+    return (
+      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+        <button
+          className="flex items-center space-x-1 focus:outline-none group"
+          onClick={() => onSort(field)}
+        >
+          <span>{label}</span>
+          <span
+            className={`transform transition-transform ${
+              isSorted ? "opacity-100" : "opacity-0 group-hover:opacity-50"
+            }`}
+          >
+            {isSorted && sortDirection === "asc" ? "↑" : "↓"}
+          </span>
+        </button>
+      </th>
+    );
+  };
+
   return (
     <div className="overflow-x-auto">
       <table className="min-w-full divide-y divide-gray-200">
@@ -39,11 +72,10 @@ export function SubscriptionList({
               Name
             </th>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-              Renewal Date
+              Purchase Date
             </th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-              Cost
-            </th>
+            <SortHeader field="renewalDate" label="Days Until Renewal" />
+            <SortHeader field="cost" label="Cost" />
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
               Frequency
             </th>

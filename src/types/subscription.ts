@@ -25,3 +25,8 @@ export interface SubscriptionFormData {
   status: SubscriptionStatus;
   notes?: string;
 }
+
+export interface SubscriptionFormWithPurchaseDate
+  extends Omit<SubscriptionFormData, "renewalDate"> {
+  purchaseDate: string;
+}

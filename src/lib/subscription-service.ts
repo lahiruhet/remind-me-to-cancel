@@ -1,82 +1,125 @@
 import { Subscription, SubscriptionFormData } from "@/types/subscription";
-import { v4 as uuidv4 } from "uuid";
+import { db } from "./firebase";
+import {
+  collection,
+  getDocs,
+  addDoc,
+  updateDoc,
+  deleteDoc,
+  doc,
+  Timestamp,
+  query,
+  orderBy,
+} from "firebase/firestore";
 
-// Mock data
-let subscriptions: Subscription[] = [
-  {
-    id: "1",
-    name: "Netflix",
-    renewalDate: "2024-04-01",
-    cost: 15.99,
-    frequency: "Monthly",
-    status: "Active",
-    notes: "Premium plan",
-    createdAt: "2024-03-01T00:00:00Z",
-    updatedAt: "2024-03-01T00:00:00Z",
-  },
-  {
-    id: "2",
-    name: "Spotify",
-    renewalDate: "2024-04-15",
-    cost: 9.99,
-    frequency: "Monthly",
-    status: "Active",
-    createdAt: "2024-03-01T00:00:00Z",
-    updatedAt: "2024-03-01T00:00:00Z",
-  },
-  {
-    id: "3",
-    name: "Adobe Creative Cloud",
-    renewalDate: "2025-03-01",
-    cost: 599.99,
-    frequency: "Yearly",
-    status: "Active",
-    notes: "All apps plan",
-    createdAt: "2024-03-01T00:00:00Z",
-    updatedAt: "2024-03-01T00:00:00Z",
-  },
-];
+const COLLECTION_NAME = "subscriptions";
 
 export const subscriptionService = {
   getAll: async (): Promise<Subscription[]> => {
-    // Simulate API delay
-    await new Promise((resolve) => setTimeout(resolve, 500));
-    return subscriptions;
+    try {
+      const subscriptionsQuery = query(
+        collection(db, COLLECTION_NAME),
+        orderBy("createdAt", "desc")
+      );
+      const snapshot = await getDocs(subscriptionsQuery);
+
+      return snapshot.docs.map((doc) => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          name: data.name,
+          renewalDate: data.renewalDate,
+          cost: data.cost,
+          frequency: data.frequency,
+          status: data.status,
+          notes: data.notes || undefined,
+          createdAt: data.createdAt.toDate().toISOString(),
+          updatedAt: data.updatedAt.toDate().toISOString(),
+        } as Subscription;
+      });
+    } catch (error) {
+      console.error("Error getting subscriptions:", error);
+      throw error;
+    }
   },
 
   create: async (data: SubscriptionFormData): Promise<Subscription> => {
-    await new Promise((resolve) => setTimeout(resolve, 500));
-    const newSubscription: Subscription = {
-      id: uuidv4(),
-      ...data,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-    subscriptions.push(newSubscription);
-    return newSubscription;
+    try {
+      const now = Timestamp.now();
+
+      // Format the data for Firestore
+      const subscriptionData = {
+        name: data.name,
+        renewalDate: data.renewalDate,
+        cost: Number(data.cost), // Ensure this is a number
+        frequency: data.frequency,
+        status: data.status,
+        notes: data.notes || null, // Use null instead of undefined
+        createdAt: now,
+        updatedAt: now,
+      };
+
+      const docRef = await addDoc(
+        collection(db, COLLECTION_NAME),
+        subscriptionData
+      );
+
+      return {
+        id: docRef.id,
+        ...data,
+        createdAt: now.toDate().toISOString(),
+        updatedAt: now.toDate().toISOString(),
+      };
+    } catch (error) {
+      console.error("Error creating subscription:", error);
+      // More detailed error logging
+      if (error instanceof Error) {
+        console.error("Error message:", error.message);
+        console.error("Error stack:", error.stack);
+      }
+      throw error;
+    }
   },
 
   update: async (
     id: string,
     data: SubscriptionFormData
   ): Promise<Subscription> => {
-    await new Promise((resolve) => setTimeout(resolve, 500));
-    const index = subscriptions.findIndex((sub) => sub.id === id);
-    if (index === -1) throw new Error("Subscription not found");
+    try {
+      const docRef = doc(db, COLLECTION_NAME, id);
 
-    const updatedSubscription: Subscription = {
-      ...subscriptions[index],
-      ...data,
-      updatedAt: new Date().toISOString(),
-    };
-    subscriptions[index] = updatedSubscription;
-    return updatedSubscription;
+      const updateData = {
+        ...data,
+        updatedAt: Timestamp.now(),
+      };
+
+      await updateDoc(docRef, updateData);
+
+      // Get the updated document to return
+      const updatedSubscription: Subscription = {
+        id,
+        ...data,
+        createdAt: "", // This will be filled on the next line
+        updatedAt: new Date().toISOString(),
+      };
+
+      // Note: In a real-world scenario, you might want to get the actual document
+      // after update to ensure data consistency, but for simplicity we're constructing it
+
+      return updatedSubscription;
+    } catch (error) {
+      console.error("Error updating subscription:", error);
+      throw error;
+    }
   },
 
   delete: async (id: string): Promise<void> => {
-    await new Promise((resolve) => setTimeout(resolve, 500));
-    const index = subscriptions.findIndex((sub) => sub.id === id);
-    if (index === -1) throw new Error("Subscription not found");
-    subscriptions = subscriptions.filter((sub) => sub.id !== id);
+    try {
+      const docRef = doc(db, COLLECTION_NAME, id);
+      await deleteDoc(docRef);
+    } catch (error) {
+      console.error("Error deleting subscription:", error);
+      throw error;
+    }
   },
 };

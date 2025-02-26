@@ -25,3 +25,8 @@ Thumbs.db
 *.njsproj
 *.sln
 
+# Add this to your .gitignore file if it's not already there
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
